@@ -2,11 +2,11 @@ name: Build and Release PDF.js Standard JS
 
 on:
   schedule:
-    - cron: '0 0/6 * * *' # Executes every 6 hours.
+    - cron: '0 0 * * *' # Runs at 00:00.
   workflow_dispatch:
     inputs:
       version:
-        description: 'NPM pdfjs-dist version (e.g., 4.3.136) or latest'
+        description: 'NPM pdfjs-dist version (4.3.136 or latest)'
         required: false
         default: 'latest'
         type: string
@@ -73,11 +73,11 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.version_check.outputs.should_build == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: "custom-js-${{ steps.version_check.outputs.version }}"
           name: "PDF.js JS Build v${{ steps.version_check.outputs.version }}"
-          files: pdfjs-custom-js-release.zip
+          files: "pdfjs-${{ steps.version_check.outputs.version }}-custom-release.zip"
           body: |
             Automated deployment of compiled PDF.js standard JavaScript files.
             - **Upstream Version:** https://www.npmjs.com/package/pdfjs-dist/v/${{ steps.version_check.outputs.version }}
