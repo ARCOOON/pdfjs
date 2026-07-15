@@ -4,14 +4,13 @@ import fs from 'fs';
 
 async function buildModules() {
   const distPath = './node_modules/pdfjs-dist/legacy/build';
-  const outDir = './dist';
+  const outBuildDir = './dist/build';
 
-  // Ensure output directory exists
-  if (!fs.existsSync(outDir)) {
-    fs.mkdirSync(outDir, { recursive: true });
+  // Ensure output directory exists inside dist/build
+  if (!fs.existsSync(outBuildDir)) {
+    fs.mkdirSync(outBuildDir, { recursive: true });
   }
 
-  // Shared configuration for esbuild
   const commonConfig = {
     bundle: true,
     format: 'iife',
@@ -20,32 +19,36 @@ async function buildModules() {
     target: ['es2020']
   };
 
+  const targets = [
+    { in: 'pdf.mjs', out: 'pdf.js', globalName: 'pdfjsLib' },
+    { in: 'pdf.worker.mjs', out: 'pdf.worker.js' },
+    { in: 'pdf.sandbox.mjs', out: 'pdf.sandbox.js' }
+  ];
+
   console.log('Starting transpilation of PDF.js modules...');
 
-  // 1. Bundle the main library
-  await esbuild.build({
-    ...commonConfig,
-    entryPoints: [path.join(distPath, 'pdf.mjs')],
-    globalName: 'pdfjsLib',
-    outfile: path.join(outDir, 'pdf.js'),
-  });
-  console.log('✓ pdf.js bundled.');
+  for (const t of targets) {
+    // 1. Build standard unminified version
+    await esbuild.build({
+      ...commonConfig,
+      entryPoints: [path.join(distPath, t.in)],
+      outfile: path.join(outBuildDir, t.out),
+      globalName: t.globalName,
+      minify: false
+    });
+    console.log(`✓ ${t.out} bundled.`);
 
-  // 2. Bundle the Web Worker
-  await esbuild.build({
-    ...commonConfig,
-    entryPoints: [path.join(distPath, 'pdf.worker.mjs')],
-    outfile: path.join(outDir, 'pdf.worker.js'),
-  });
-  console.log('✓ pdf.worker.js bundled.');
-
-  // 3. Bundle the Sandbox
-  await esbuild.build({
-    ...commonConfig,
-    entryPoints: [path.join(distPath, 'pdf.sandbox.mjs')],
-    outfile: path.join(outDir, 'pdf.sandbox.js'),
-  });
-  console.log('✓ pdf.sandbox.js bundled.');
+    // 2. Build minified version
+    const minOut = t.out.replace('.js', '.min.js');
+    await esbuild.build({
+      ...commonConfig,
+      entryPoints: [path.join(distPath, t.in)],
+      outfile: path.join(outBuildDir, minOut),
+      globalName: t.globalName,
+      minify: true
+    });
+    console.log(`✓ ${minOut} bundled (minified).`);
+  }
 
   console.log('Transpilation completed successfully.');
 }
