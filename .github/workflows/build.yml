@@ -35,18 +35,15 @@ jobs:
           INPUT_VERSION="${{ inputs.version || 'latest' }}"
           
           if [ "$INPUT_VERSION" == "latest" ]; then
-            # Fetch the absolute latest version from npm registry
             NPM_VERSION=$(npm view pdfjs-dist version)
             echo "Target version is latest npm: $NPM_VERSION"
           else
-            # Sanitize version input (remove potential 'v' prefix)
             NPM_VERSION=$(echo "$INPUT_VERSION" | sed 's/^v//')
             echo "Target version specified: $NPM_VERSION"
           fi
           
           echo "version=$NPM_VERSION" >> $GITHUB_OUTPUT
           
-          # Check if a GitHub release for this version already exists (only skip during automated cron runs)
           if [ "${{ github.event_name }}" == "schedule" ]; then
             RELEASE_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" https://api.github.com/repos/${{ github.repository }}/releases/tags/custom-js-$NPM_VERSION)
             if [ "$RELEASE_EXISTS" == "200" ]; then
@@ -68,14 +65,23 @@ jobs:
       - name: Package release assets
         if: steps.version_check.outputs.should_build == 'true'
         run: |
-          # Copy the original Apache 2.0 license from the upstream package
+          # Copy the original Apache 2.0 license
           cp node_modules/pdfjs-dist/LICENSE dist/
           
-          # Copy all WebAssembly (.wasm) files required for image decoding
-          cp node_modules/pdfjs-dist/legacy/build/*.wasm dist/ 2>/dev/null || true
+          # Create target directories to replicate upstream structure
+          mkdir -p dist/wasm dist/build
+          
+          # Find and copy all .wasm files to both build/ and wasm/ just to ensure compatibility with various module loaders
+          find node_modules/pdfjs-dist/ -type f -name "*.wasm" -exec cp {} dist/build/ \; 2>/dev/null || true
+          find node_modules/pdfjs-dist/ -type f -name "*.wasm" -exec cp {} dist/wasm/ \; 2>/dev/null || true
+          
+          # Copy image_decoders directory entirely
+          cp -r node_modules/pdfjs-dist/image_decoders dist/ 2>/dev/null || true
+          
+          # Clean up wasm folder if no wasm files were found (for older pdf.js versions)
+          rmdir dist/wasm 2>/dev/null || true
           
           cd dist
-          # Use the version variable to dynamically name the archive
           zip -r "../pdfjs-${{ steps.version_check.outputs.version }}-custom-release.zip" ./*
 
       - name: Create GitHub Release
@@ -89,7 +95,8 @@ jobs:
             Automated deployment of compiled PDF.js standard JavaScript files.
             - **Upstream Version:** https://www.npmjs.com/package/pdfjs-dist/v/${{ steps.version_check.outputs.version }}
             - **Format:** IIFE (Standard script tag compatible)
+            - **Files:** Includes standard `.js` and minified `.min.js` variants under `build/`
+            - **WebAssembly/Decoders:** Included (`.wasm` and `image_decoders/`)
             - **Polyfills:** Included (Legacy build base)
-            - **WebAssembly:** Included (`.wasm`)
-            - **Source Maps:** Included (`.js.map`)
+            - **Source Maps:** Included (`.js.map` and `.min.js.map`)
             - **License:** Apache License 2.0 (Included in archive)
