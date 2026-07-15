@@ -71,6 +71,9 @@ jobs:
           # Copy the original Apache 2.0 license from the upstream package
           cp node_modules/pdfjs-dist/LICENSE dist/
           
+          # Copy all WebAssembly (.wasm) files required for image decoding
+          cp node_modules/pdfjs-dist/legacy/build/*.wasm dist/ 2>/dev/null || true
+          
           cd dist
           # Use the version variable to dynamically name the archive
           zip -r "../pdfjs-${{ steps.version_check.outputs.version }}-custom-release.zip" ./*
@@ -87,5 +90,6 @@ jobs:
             - **Upstream Version:** https://www.npmjs.com/package/pdfjs-dist/v/${{ steps.version_check.outputs.version }}
             - **Format:** IIFE (Standard script tag compatible)
             - **Polyfills:** Included (Legacy build base)
+            - **WebAssembly:** Included (`.wasm`)
             - **Source Maps:** Included (`.js.map`)
             - **License:** Apache License 2.0 (Included in archive)
